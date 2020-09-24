@@ -13,10 +13,10 @@ class CioTest extends AsyncTests {
 
   var fi = 1
 
-  val good: CIO[String] = CIO.msg("Doing Good things").as("Good")
+  val good: CIO[String]  = CIO.msg("Doing Good things").as("Good")
   val good2: CIO[String] = CIO.msg("Doing Good things2").as("Good2")
-  val bad: CIO[String] = CIO.fromIO(IO.raiseError(new Throwable("Error when doing Bad things")))
-  val bad2: CIO[String] = CIO.fromIO(IO.raiseError(new Throwable("Error when doing Bad things2")))
+  val bad: CIO[String]   = CIO.fromIO(IO.raiseError(new Throwable("Error when doing Bad things")))
+  val bad2: CIO[String]  = CIO.fromIO(IO.raiseError(new Throwable("Error when doing Bad things2")))
 
   def doThat(s: String): CIO[String] =
     if (s.toLowerCase.contains("bad"))
@@ -30,10 +30,10 @@ class CioTest extends AsyncTests {
     } else if (i < 0) fromIO(IO.raiseError(new Throwable(s"Error with input: $i")))
     else CIO.msg(s"Do with input: $i").as(i)
 
-  implicit val ioCS = IO.contextShift(implicitly)
+  implicit val ioCS    = IO.contextShift(implicitly)
   implicit val ioTimer = IO.timer(implicitly)
 
-  val bracketIO: Bracket[IO, Throwable] = implicitly
+  val bracketIO: Bracket[IO, Throwable]   = implicitly
   val bracketCIO: Bracket[CIO, Throwable] = cio.cioConcurrent(ioCS)
 
   "CIO" in {
@@ -86,7 +86,7 @@ class CioTest extends AsyncTests {
 
       _ <- "Applicative (.tupled, .mapN, parTupled, etc.)" ~< {
         val goodTuple = (f(1), f(2), f(3))
-        val badTuple = (f(1), f(-2), f(3))
+        val badTuple  = (f(1), f(-2), f(3))
 
         for {
           _ <- (".tupled Ok" ~< goodTuple.tupled).attemptUntitled.valued
