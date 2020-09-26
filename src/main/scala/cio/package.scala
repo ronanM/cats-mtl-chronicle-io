@@ -120,14 +120,13 @@ package object cio {
 
     def timed[A](title: String)(c: CIO[A]): CIO[A] =
       CIO(fromNanos(System.nanoTime())).flatMap { start =>
-        materialize(c).fproduct(_ => fromNanos(System.nanoTime())).flatMap {
-          case (v, end) =>
-            val timedTitle = s"$title (in ${(end - start).toMillis} ms)"
-            v match {
-              case Ior.Left(log)    => indent(timedTitle)(confess(log))
-              case Ior.Right(a)     => pure(a)
-              case Ior.Both(log, a) => indent(timedTitle)(dictate(log).as(a))
-            }
+        materialize(c).fproduct(_ => fromNanos(System.nanoTime())).flatMap { case (v, end) =>
+          val timedTitle = s"$title (in ${(end - start).toMillis} ms)"
+          v match {
+            case Ior.Left(log)    => indent(timedTitle)(confess(log))
+            case Ior.Right(a)     => pure(a)
+            case Ior.Both(log, a) => indent(timedTitle)(dictate(log).as(a))
+          }
         }
       }
 
@@ -222,12 +221,11 @@ package object cio {
               case Ior.Left(log)    => indent("Use:")(confess(log))
               case Ior.Both(log, a) => indent("Use:")(dictate(log).as(a))
             }
-          ) {
-            case (aa, exitCase) =>
-              defaultOr(release(aa, exitCase)) {
-                case Ior.Left(log)    => indent(s"Release (exitCase: $exitCase)")(confess(log))
-                case Ior.Both(log, a) => indent(s"Release (exitCase: $exitCase)")(dictate(log).as(a))
-              }
+          ) { case (aa, exitCase) =>
+            defaultOr(release(aa, exitCase)) {
+              case Ior.Left(log)    => indent(s"Release (exitCase: $exitCase)")(confess(log))
+              case Ior.Both(log, a) => indent(s"Release (exitCase: $exitCase)")(dictate(log).as(a))
+            }
           }
         )
 
@@ -237,13 +235,12 @@ package object cio {
       override def handleErrorWith[A](fa: CIO[A])(f: Throwable => CIO[A]): CIO[A] =
         defaultOr(fa) {
           case Ior.Left(log1) =>
-            withLastErr(log1) {
-              case LogErr(ex) =>
-                materialize(f(ex)).flatMap {
-                  case Ior.Left(log2)    => indent(s"Not recovered:")(attemptUntitled(indent("First failed:")(confess(log1))) *> indent("Second failed:")(confess(log2)))
-                  case Ior.Right(a)      => indent(s"Recovered:")(indent("From:")(dictate(log1)).as(a))
-                  case Ior.Both(log2, a) => indent(s"Recovered:")(attemptUntitled(indent("From:")(confess(log1))) *> indent("To:")(dictate(log2).as(a)))
-                }
+            withLastErr(log1) { case LogErr(ex) =>
+              materialize(f(ex)).flatMap {
+                case Ior.Left(log2)    => indent(s"Not recovered:")(attemptUntitled(indent("First failed:")(confess(log1))) *> indent("Second failed:")(confess(log2)))
+                case Ior.Right(a)      => indent(s"Recovered:")(indent("From:")(dictate(log1)).as(a))
+                case Ior.Both(log2, a) => indent(s"Recovered:")(attemptUntitled(indent("From:")(confess(log1))) *> indent("To:")(dictate(log2).as(a)))
+              }
             }
           case Ior.Right(a) => dictate(List(LogNode(LogMsg("Right (unuseful ?):")))).as(a)
         }

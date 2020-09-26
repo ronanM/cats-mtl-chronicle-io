@@ -113,13 +113,14 @@ class CioTest extends AsyncTests {
 
       _ <- CIO.whenA(false) {
         for {
-          fsResult <-
-            "Using FS2" ~< fs2
+          fsResult <- "Using FS2" ~<
+            fs2
               .Stream(1, 2, 3)
               .covary[CIO]
               .mapAsync(1)(i => f(i * 1000).valued)
               .compile
               .toList
+
           _ <- CIO(println(s"fsResult: $fsResult"))
           _ <- CIO(assert(fsResult === List(1000, 2000, 3000)))
         } yield ()
