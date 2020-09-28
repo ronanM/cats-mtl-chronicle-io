@@ -23,6 +23,7 @@ import scala.Console.BOLD
 import scala.Console.RED
 import scala.Console.RESET
 import scala.Console.WHITE
+import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.Duration.fromNanos
 
 package object cio {
@@ -155,7 +156,7 @@ package object cio {
       Applicative[CIO].whenA(cond)(f)
   }
 
-  implicit def cioConcurrent(implicit cs: ContextShift[IO]): Concurrent[CIO] =
+  implicit def cioConcurrent(implicit cs: ContextShift[IO] = IO.contextShift(ExecutionContext.global)): Concurrent[CIO] =
     new Concurrent[CIO] {
 
       val defaultConcurrent: Concurrent[CIO] = effect.Concurrent.catsIorTConcurrent(implicitly, implicitly)
