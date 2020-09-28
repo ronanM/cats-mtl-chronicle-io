@@ -7,7 +7,7 @@ import cats.effect.Concurrent
 import cats.effect.ContextShift
 import cats.effect.ExitCase
 import cats.effect.IO
-import cats.mtl.MonadChronicle
+import cats.mtl.Chronicle
 import cats.mtl.implicits._
 import cats.syntax.all._
 import cio.CIO.attemptUntitled
@@ -40,6 +40,7 @@ package object cio {
 
     object LogItem {
       final case class LogMsg(s: String, ok: Boolean = true) extends LogItem
+
       final case class LogErr(ex: Throwable) extends LogItem
     }
 
@@ -74,7 +75,7 @@ package object cio {
   type LOG    = List[LogNode]
   type CIO[A] = IorT[IO, LOG, A]
 
-  private val C = MonadChronicle[CIO, LOG]
+  private val C = Chronicle[CIO, LOG]
   import C.chronicle
   import C.confess
   import C.dictate
@@ -98,9 +99,6 @@ package object cio {
 
     def defaultOr[A](c: CIO[A])(f: PartialFunction[Ior[LOG, A], CIO[A]]): CIO[A] =
       materialize(c).flatMap(f.orElse { case v => chronicle(v) })
-
-    def transform[A, AA >: A](cio: CIO[A])(f: Ior[LOG, A] => Ior[LOG, AA]): CIO[AA] =
-      materialize(cio).flatMap(v => chronicle(f(v)))
 
     def runIO[A](c: CIO[A]): IO[A] =
       c.value.flatMap {

@@ -14,9 +14,9 @@ libraryDependencies ++= Seq(
   "org.typelevel" %% "cats-testkit-scalatest" % "2.0.0" % Test
 )
 
-libraryDependencies += "org.typelevel" %% "cats-effect" % "2.1.3"
+libraryDependencies += "org.typelevel" %% "cats-effect" % "2.2.0"
 
 resolvers += Resolver.bintrayRepo("edmundnoble", "maven")
-libraryDependencies += "org.typelevel" %% "cats-mtl-core" % "0.7.1"
+libraryDependencies += "org.typelevel" %% "cats-mtl" % "1.0.0"
 
-libraryDependencies += "co.fs2" %% "fs2-io" % "2.3.0"
+libraryDependencies += "co.fs2" %% "fs2-io" % "2.4.4"
