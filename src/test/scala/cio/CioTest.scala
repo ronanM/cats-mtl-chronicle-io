@@ -1,6 +1,7 @@
 package cio
 
 import cats.effect.Bracket
+import cats.effect.Concurrent
 import cats.effect.IO
 import cats.effect.implicits._
 import cio.CIO.fromIO
@@ -100,6 +101,9 @@ class CioTest extends AsyncTests {
 
           _ <- (".parMapN Ok" ~< goodTuple.parMapN(_ + _ + _)).attemptUntitled.valued
           _ <- (".parMapN NOk" ~< badTuple.parMapN(_ + _ + _)).attemptUntitled.valued
+
+          fib <- ".start Ok" ~< f(42).start
+          _ <- fib.join
         } yield ()
       }
 
@@ -121,7 +125,6 @@ class CioTest extends AsyncTests {
               .compile
               .toList
 
-          _ <- CIO(println(s"fsResult: $fsResult"))
           _ <- CIO(assert(fsResult === List(1000, 2000, 3000)))
         } yield ()
       }

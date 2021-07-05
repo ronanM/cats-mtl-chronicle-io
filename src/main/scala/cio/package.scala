@@ -1,11 +1,14 @@
+import cats.data.EitherT
 import cats.data.Ior
 import cats.data.IorT
 import cats.Applicative
 import cats.Traverse
 import cats.effect
+import cats.effect.CancelToken
 import cats.effect.Concurrent
 import cats.effect.ContextShift
 import cats.effect.ExitCase
+import cats.effect.Fiber
 import cats.effect.IO
 import cats.mtl.Chronicle
 import cats.mtl.implicits._
@@ -25,6 +28,7 @@ import scala.Console.RESET
 import scala.Console.WHITE
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.Duration.fromNanos
+import scala.util.Either
 
 package object cio {
 
@@ -98,6 +102,9 @@ package object cio {
         case Right(a) => IorT.pure(a)
       }
 
+    def defaultTitled[A](c: CIO[A])(title: String): CIO[A] =
+      materialize(c).flatMap(v => indent(title)(chronicle(v)))
+
     def defaultOr[A](c: CIO[A])(f: PartialFunction[Ior[LOG, A], CIO[A]]): CIO[A] =
       materialize(c).flatMap(f.orElse { case v => chronicle(v) })
 
@@ -166,47 +173,52 @@ package object cio {
       type Fiber[A]   = effect.Fiber[IorTLog, A]
 
       private def fibR[A](fib: effect.Fiber[CIO, Ior[LOG, A]]): Fiber[A] =
-        effect.Fiber[IorTLog, A](fib.join.flatMap(chronicle), fib.cancel)
+        effect.Fiber[IorTLog, A](fib.join.flatMap(v => indent("fibR:")(chronicle(v))), fib.cancel)
+
+      def fiberT[A](fiber: effect.Fiber[IO, Ior[LOG, A]]): Fiber[A] =
+        Fiber[IorTLog, A](indent("join:", valued = true)(IorT[IO, LOG, A](fiber.join)), indent("cancel:", valued = true)(IorT.liftF(fiber.cancel)))
 
       override def start[A](fa: CIO[A]): CIO[Fiber[A]] =
-        defaultConcurrent.start(fa)
+        indent("start:")(IorT.liftF[IO, LOG, Fiber[A]](Concurrent[IO].start(fa.value).map(fiberT)))
 
       override def racePair[A, B](fa: CIO[A], fb: CIO[B]): CIO[Either[(A, Fiber[B]), (Fiber[A], B)]] =
-        defaultConcurrent
-          .racePair[Ior[LOG, A], Ior[LOG, B]](materialize(fa), materialize(fb))
-          .flatMap {
-            case Left((aa, fibB)) =>
-              aa match {
-                case Ior.Left(log)    => confess(log)
-                case Ior.Right(a)     => pure(Left((a, fibR(fibB))))
-                case Ior.Both(log, a) => dictate(log).as(Left((a, fibR(fibB))))
-              }
+        indent("racePair:")(
+          defaultConcurrent
+            .racePair[Ior[LOG, A], Ior[LOG, B]](materialize(fa), materialize(fb))
+            .flatMap {
+              case Left((aa, fibB)) =>
+                aa match {
+                  case Ior.Left(log)    => confess(log)
+                  case Ior.Right(a)     => pure(Left((a, fibR(fibB))))
+                  case Ior.Both(log, a) => dictate(log).as(Left((a, fibR(fibB))))
+                }
 
-            case Right((fibA, bb)) =>
-              bb match {
-                case Ior.Left(log)    => confess(log)
-                case Ior.Right(b)     => pure(Right((fibR(fibA), b)))
-                case Ior.Both(log, b) => dictate(log).as(Right((fibR(fibA), b)))
-              }
-          }
+              case Right((fibA, bb)) =>
+                bb match {
+                  case Ior.Left(log)    => confess(log)
+                  case Ior.Right(b)     => pure(Right((fibR(fibA), b)))
+                  case Ior.Both(log, b) => dictate(log).as(Right((fibR(fibA), b)))
+                }
+            }
+        )
 
       override def async[A](k: (Either[Throwable, A] => Unit) => Unit): CIO[A] =
-        defaultConcurrent.async(k)
+        indent("async:")(defaultConcurrent.async(k))
 
       override def asyncF[A](k: (Either[Throwable, A] => Unit) => CIO[Unit]): CIO[A] =
         defaultConcurrent.asyncF(eitherF =>
           defaultOr(k(eitherF)) {
-            case Ior.Left(log)    => indent("Async:")(confess(log))
-            case Ior.Right(a)     => indent("Async:")(pure(a))
-            case Ior.Both(log, a) => indent("Async:")(dictate(log).as(a))
+            case Ior.Left(log)    => indent("asyncF:")(confess(log))
+            case Ior.Right(a)     => indent("asyncF:")(pure(a))
+            case Ior.Both(log, a) => indent("asyncF:")(dictate(log).as(a))
           }
         )
 
       override def suspend[A](thunk: => CIO[A]): CIO[A] =
         defaultOr(defaultConcurrent.suspend(thunk)) {
           case Ior.Left(log)    => indent("Suspend:")(confess(log))
-          case Ior.Right(a)     => indent("Suspend:")(pure(a))
-          case Ior.Both(log, a) => indent("Suspend:")(dictate(log).as(a))
+          case Ior.Right(a)     => indent(s"Suspend: $a")(pure(a))
+          case Ior.Both(log, a) => indent(s"Suspend: $a")(dictate(log).as(a))
         }
 
       override def bracketCase[A, B](acquire: CIO[A])(use: A => CIO[B])(release: (A, ExitCase[Throwable]) => CIO[Unit]): CIO[B] =
@@ -241,14 +253,22 @@ package object cio {
                 case Ior.Both(log2, a) => indent(s"Recovered:")(attemptUntitled(indent("From:")(confess(log1))) *> indent("To:")(dictate(log2).as(a)))
               }
             }
-          case Ior.Right(a) => dictate(List(LogNode(LogMsg("Right (unuseful ?):")))).as(a)
+          case Ior.Right(a)     => dictate(List(LogNode(LogMsg(s"Right: $a")))).as(a)
+          case Ior.Both(log, a) => dictate(List(LogNode(LogMsg(s"Both: $a"), log))).as(a)
         }
 
       override def flatMap[A, B](fa: CIO[A])(f: A => CIO[B]): CIO[B] =
-        fa.flatMap(f)
+        defaultConcurrent.flatMap(fa)(f)
 
       override def tailRecM[A, B](a: A)(f: A => CIO[Either[A, B]]): CIO[B] =
-        defaultConcurrent.tailRecM(a)(f)
+        defaultConcurrent.tailRecM(a)(a =>
+          defaultOr(f(a)) {
+            case Ior.Left(log)    => indent("tailRecM:")(confess(log))
+            case Ior.Right(a)     => indent(s"tailRecM: $a")(pure(a))
+            case Ior.Both(log, a) => indent(s"tailRecM: $a")(dictate(log).as(a))
+
+          }
+        )
 
       override def pure[A](x: A): CIO[A] = CIO.pure(x)
 

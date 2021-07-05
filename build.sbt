@@ -1,22 +1,22 @@
-scalaVersion := "2.12.12"
+scalaVersion := "2.12.14"
 
 name := "cats-mtl-chronicle-io"
 
 //target := file("/dev/shm/cio/target")
 
-parallelExecution in ThisBuild := false
+ThisBuild / parallelExecution := false
 
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.10")
 resolvers += Resolver.sonatypeRepo("releases")
 
 libraryDependencies ++= Seq(
-  "org.typelevel" %% "cats-core" % "2.2.0",
-  "org.typelevel" %% "cats-testkit-scalatest" % "2.0.0" % Test
+  "org.typelevel" %% "cats-core" % "2.6.1",
+  "org.typelevel" %% "cats-testkit-scalatest" % "2.1.5" % Test
 )
 
-libraryDependencies += "org.typelevel" %% "cats-effect" % "2.2.0"
+libraryDependencies += "org.typelevel" %% "cats-effect" % "2.5.1"
 
 resolvers += Resolver.bintrayRepo("edmundnoble", "maven")
-libraryDependencies += "org.typelevel" %% "cats-mtl" % "1.0.0"
+libraryDependencies += "org.typelevel" %% "cats-mtl" % "1.2.1"
 
-libraryDependencies += "co.fs2" %% "fs2-io" % "2.4.4"
+libraryDependencies += "co.fs2" %% "fs2-io" % "2.5.8"
